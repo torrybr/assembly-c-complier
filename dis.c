@@ -1,0 +1,318 @@
+#include <stdio.h>
+#include <arpa/inet.h>
+#include <stdbool.h>
+
+// Read a single 16-bit word from the given file descriptor.
+// Return the word, or EOF if no more data is available.
+
+int read_word(FILE *f) {
+    unsigned short s;
+    if (fread(&s, sizeof(s), 1, f) != 1)
+	return EOF;
+    return ntohs(s);	// Convert file byte order to desired byte order
+}
+int thissucks(int n, int m) {
+	int rint;
+	rint = (n <<((32-m)-1));
+	rint = (rint >> (32-(m +1)));
+	return rint;
+}
+void fill(int x) {	
+	printf("\t.fill\tx%04x\n", x);
+}
+int getBit (int value, int position) {
+	int i = 1<<position; 
+	int bit = value&i;
+		if(bit == 0) {
+		    return 0;
+		}else {
+	            return 1;
+		}
+}
+int getField (int value, int hi, int lo, bool isSigned) {
+	int temphi =hi;
+	int templo =lo;
+	int width = (temphi-templo)+1;
+	//int res = temphi-templo;
+	//int mask2 = 1<<res;
+		if(lo>hi ) {
+		templo=hi;
+		temphi=lo;
+		}
+	int mask = (1<<width)-1;
+	value = value>>templo;
+		return value&mask;
+}
+void add(int x) {
+	int desRegister = getField(x,11,9,0);
+	int sr1 = getField(x,8,6,0);
+	int sr2 = thissucks(getField(x,4,0,0),4);	
+	int bit_five = getBit(x,5);
+		
+	if(bit_five == 0){
+		if(getField(x,4,3,0) == 0) {
+			printf("\tadd\tr%i,r%i,r%i\n", desRegister,sr1,sr2);	
+		} else {
+		fill(x);
+		}
+	}
+	if(bit_five == 1) {
+		if(getBit(x,4) == 0) {		
+			printf("\tadd\tr%i,r%i,#%i\n", desRegister,sr1,sr2);
+			} else {
+		
+			
+			printf("\tadd\tr%i,r%i,#%i\n", desRegister,sr1,sr2);
+			}	
+		
+	}
+}
+
+void str(int x) {
+	int sr = getField(x,11,9,0);
+	int baseR = getField(x,8,6,0);
+	int offset6 = thissucks(getField(x,5,0,0),5);
+	printf("\tstr\tr%i,r%i,#%i\n",sr,baseR,offset6);
+}
+void ldr(int x) {
+	int dr = getField(x,11,9,0);
+	int baseR = getField(x,8,6,0);
+	int offset6 = thissucks(getField(x,5,0,0),5);
+	printf("\tldr\tr%i,r%i,#%i\n",dr,baseR,offset6);
+}
+void not(int x) {
+	int dr = getField(x,11,9,0);
+	int sr = getField(x,8,6,0);
+	int offset6 = getField(x,5,0,0);
+	if(offset6 == 63 ) {
+	printf("\tnot\tr%i,r%i\n",dr,sr);
+	} else {
+	fill(x);
+	}
+}
+void retorJmp(int x) {
+	if((getField(x,11,9,0) == 0) && (getField(x,8,6,0) == 7) && (getField(x,5,0,0) == 0)) {
+	printf("\tret\n");
+	} else if((getField(x, 11,9,0) == 0) && (getField(x,5,0,0) == 0)) {
+	int baseR = getField(x,8,6,0);
+	printf("\tjmp\tr%i\n",baseR);
+	}
+}
+void br(int x) {  ////////fix this method
+	int n = getBit(x,11);
+	int z = getBit(x,10);
+	int p = getBit(x,9);
+	int offset9 = thissucks(getField(x,8,0,0),8);
+	if(n == 0 && z == 0 && p == 0) {
+		fill(x);
+	} else if(n ==1 && z == 1 && p ==1) {
+		if(offset9 >=0) {
+		printf("\tbrnpz\tpc+%i\n",offset9);
+		} else {
+		printf("\tbrnpz\tpc%i\t\n",offset9);
+		}
+	} else if(n==1 && z==0 && p ==0) {
+		if(offset9 >=0) {
+		printf("\tbrn\tpc+%i\n",offset9);
+		} else {
+		printf("\tbrn\tpc%i\n",offset9);
+		}
+	}else if(n==0 && z==1 && p ==0) {
+		if(offset9 >=0) {
+		printf("\tbrz\tpc+%i\n",offset9);
+		} else {
+		printf("\tbrz\tpc%i\n",offset9);
+		}
+	} else if(n==0 && z==0 && p ==1) {
+		if(offset9 >=0) {
+		printf("\tbrp\tpc+%i\n",offset9);
+		} else {
+		printf("\tbrp\tpc%i\n",offset9);
+		}
+	}else if(n==1 && z==1 && p ==0) {
+		if(offset9 >=0) {
+		printf("\tbrnz\tpc+%i\n",offset9);
+		} else {
+		printf("\tbrnz\tpc%i\n",offset9);
+		}
+	} else if(n==1 && z==0 && p ==1){
+		if(offset9 >=0) {
+		printf("\tbrnp\tpc+%i\n",offset9);
+		} else {
+		printf("\tbrnp\tpc%i\n",offset9);
+		}
+	} else if(n==0 && z==1 && p ==1) {
+		if(offset9 >=0) {
+		printf("\tbrpz\tpc+%i\n",offset9);
+		} else {
+		printf("\tbrpz\tpc%i\n",offset9);
+		}	
+	} else {
+		fill(x);
+	}
+}
+void orig(int x) {
+	printf("\t.orig\tx%04x\n",x);
+}
+void st(int x) {
+	int sr = getField(x,11,9,0);
+	int offset9 = thissucks(getField(x,8,0,0),8);	
+	if(getField(x,11,0,0) == 0) {
+		orig(x);
+	} else {	
+	if(offset9 >= 0) {
+		printf("\tst\tr%i,pc+%i\n", sr,offset9);
+	} else {
+		printf("\tst\tr%i,pc%i\n", sr,offset9);
+	}	
+	
+	}
+
+	
+}
+void ld(int x) {
+	int dr = getField(x,11,9,0);
+	int offset9 = thissucks(getField(x,8,0,0),8);
+	if(offset9>=0) {
+		printf("\tld\tr%i,pc+%i\n", dr,offset9);
+	} else {
+		printf("\tld\tr%i,pc%i\n", dr,offset9);
+	}	
+}
+void jsrorJsrr(int x) {
+	if(getBit(x,11) == 1 ){
+		int offset11 = thissucks(getField(x,10,0,0),10);
+		if(offset11>= 0) {
+		printf("\tjsr\tpc+%i\n",offset11);
+		}else{
+		printf("\tjsr\tpc%i\n",offset11);
+		}		
+	} else if((getBit(x,11) == 0) && (getField(x,11,9,0) == 0) && (getField(x,5,0,0) == 0)){
+		int baseR = getField(x,8,6,0);
+		printf("\tjsrr\tr%i\n",baseR);	
+	} else {
+		fill(x);
+	}
+}
+void and(int x) { // figure out negative numbers
+	int dr = getField(x,11,9,0);
+	int sr1 = getField(x,8,6,0);
+	int sr2 = getField(x,2,0,0);
+	int imm5 = thissucks(getField(x,4,0,0),4);
+	if(getField(x,5,3,0) == 0) {
+		printf("\tand\tr%i,r%i,r%i\n",dr,sr1,sr2);
+	}else if(getBit(x,5) == 1){ // bit 5 is 1 '#5'
+		// what if imm5 is negative?		
+		printf("\tand\tr%i,r%i,#%i\n",dr,sr1,imm5);
+	} else {
+		fill(x);
+	}
+}
+void rti(int x) {
+	fill(x);
+}
+void ldi(int x) { // how does pc+- work?
+	int dr = getField(x,11,9,0);
+	int offset9 = thissucks(getField(x,8,0,0),8);
+	if(offset9>=0) {
+		printf("\tldi\tr%i, pc+%i\n",dr,offset9);
+	} else {
+		printf("\tldi\tr%i, pc%i\n",dr,offset9);
+	}	
+}
+void lea(int x) {
+	int dr = getField(x,11,9,0);
+	int offset9 = thissucks(getField(x,8,0,0),8);
+	if(offset9>=0) {
+		printf("\tlea\tr%i,pc+%i\n",dr,offset9);
+	} else {
+		printf("\tlea\tr%i,pc%i\n",dr,offset9);
+	}
+}
+void trap(int x) {
+	int trapvec8 = getField(x,7,0,0);
+	if(getField(x,11,8,0) == 0) {
+		printf("\ttrap\t#%i\n",trapvec8);
+	} else {
+		fill(x);
+	}
+}
+void sti(int x) {
+	int sr = getField(x,11,9,0);
+	int offset9 = thissucks(getField(x,8,0,0),8);
+	if(offset9 >= 0) {
+		printf("\tsti\tr%i,pc+%i\n",sr,offset9);
+	} else {
+		printf("\tsti\tr%i,pc%i\n",sr,offset9);
+	}	
+}
+
+void breakdown(int x) {
+	int first_four = getField(x,15,12,0);	
+	switch(first_four) {
+		case 0:
+			br(x);
+			break;		
+		case 1:
+			add(x);
+			break;
+		case 2:
+			ld(x);
+			break;
+		case 3:
+			st(x);
+			break;
+		case 4:
+			jsrorJsrr(x);
+			break;
+		case 5:	
+			and(x);
+			break;
+		case 6:
+			ldr(x);
+			break;
+		case 7:
+			str(x);
+			break;
+		case 8:
+			rti(x);
+			break;
+		case 9:
+			not(x);
+			break;
+		case 10:
+			ldi(x);
+			break;
+		case 11:
+			sti(x);
+			break;
+		case 12:
+			retorJmp(x);
+			break;
+		case 13:
+			fill(x);
+			break;
+		case 14:
+			lea(x);
+			break;
+		case 15:
+			trap(x);
+		default : 
+			fill(x);
+	}
+}
+// Read all the words from stdin, and display them.
+int main(int argc , char *argv[]) {
+    int w;
+    FILE *f = fopen(argv[1], "r");
+    if (f==NULL) {
+	return 1;
+    }
+	while ((w = read_word(f)) != EOF) {
+	//printf("%04x\n", w);	
+	breakdown(w);
+	}
+	printf("\t.end\t\n");
+    return 0;
+}
+

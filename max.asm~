@@ -1,0 +1,31 @@
+;; File:	max.asm
+;; Description: Compute the maximum value of two numbers
+;; Author:	Jack Applin
+;; Date:	April 26, 2015
+
+	.orig	x3000
+max	add	r6,r6,#-3	; Make space for return value, r7, and r5
+	str	r7,r6,#1	; Save return address
+	str	r5,r6,#-2	; Save frame pointer address
+	add	r5,r6,#0	; Setup frame pointer
+	ldr	r1,r5,#-6	; Get one argument
+	ldr	r2,r5,#4	; Get the other argument
+
+	;; Which is greater, R1 or R2?
+	not	r0,r1		; R0=~R1; first part of negation
+	add	r0,r0,#1	; R0=-R1
+	add	r0,r2,r0	; R0=R2-R1
+	brn	over		; R0<0 => R2-R1<0 => R2<R1 => R1 is bigger
+	add	r1,r2,#0	; R1=R2
+over	str	r1,r5,#2	; Save our result
+
+	ldr	r5,r6,#0	; Restore frame pointer
+	ldr	r7,r6,#1	; Restore return address
+	add	r6,r6,#2	; Don’t need this stack space any more
+	ret
+
+;; Some invalid instructions
+	.fill	xdead
+	.fill	x100f
+
+	.end
